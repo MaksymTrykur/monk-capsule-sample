@@ -1,0 +1,41 @@
+namespace: capsule-sample
+
+web:
+  defines: runnable
+  containers:
+    app:
+      image: nginx:alpine
+  files:
+    index:
+      container: app
+      path: /usr/share/nginx/html/index.html
+      mode: 420
+      contents: |
+        <!doctype html>
+        <html>
+          <head><meta charset="utf-8"><title>Monk capsule sample</title></head>
+          <body><h1>Monk capsule sample</h1></body>
+        </html>
+    health:
+      container: app
+      path: /usr/share/nginx/html/health
+      mode: 420
+      contents: |
+        ok
+  services:
+    http:
+      container: app
+      port: 80
+      protocol: tcp
+      ingress-routes:
+        web:
+          path-prefix: /
+
+stack:
+  defines: group
+  variables:
+    environment:
+      type: string
+      value: main
+  runnable-list:
+    - capsule-sample/web
