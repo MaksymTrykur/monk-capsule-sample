@@ -6,6 +6,7 @@ name: Monk Capsules
   pull_request:
     branches: [ "main", "master" ]
     types: [closed]
+  delete:
   schedule:
     - cron: "0 * * * *"
   workflow_dispatch:
@@ -34,9 +35,14 @@ permissions:
   pull-requests: write
   deployments: write
 
+# A deleted branch's event carries the default branch as its ref, so the branch comes from the
+# event payload, to share a group with that branch's own runs. A deleted tag has no capsule and
+# gets a group of its own. Only a push cancels a run in progress, so a destroy normally waits
+# for a provision to finish instead of stopping it halfway, which can leave a cluster that no
+# cleanup can find. GitHub keeps one waiting run per group, so a newer run can still replace it.
 concurrency:
-  group: monk-capsule-${{ github.event.inputs.branch || github.head_ref || github.ref_name || github.run_id }}
-  cancel-in-progress: true
+  group: monk-capsule-${{ github.event.inputs.branch || github.head_ref || (github.event_name == 'delete' && github.event.ref_type == 'branch' && github.event.ref) || (github.event_name == 'delete' && github.run_id) || github.ref_name || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   MONK_SUBSCRIPTION_API_BASE: ${{ vars.MONK_SUBSCRIPTION_API_BASE }}
@@ -110,6 +116,88 @@ jobs:
                   -d "$dispatch_payload" > /dev/null
               done
 
+      - name: Destroy capsules whose branch was deleted
+        # The safety net for the delete trigger: a delete the workflow missed, or a destroy that
+        # was cancelled. It runs even when the reconcile step above fails. A capsule is kept
+        # whenever any live branch maps to its environment name, and nothing is destroyed unless
+        # the whole branch list was read.
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          MONK_CAPSULE_TOKEN: ${{ secrets.MONK_CAPSULE_TOKEN }}
+        run: |
+          if [ -z "$MONK_SUBSCRIPTION_API_BASE" ] || [ -z "$MONK_API_PREFIX" ] || [ -z "$MONK_PROJECT_SLUG" ]; then
+            echo "::warning::Skipping the check for deleted branches: MONK_SUBSCRIPTION_API_BASE, MONK_API_PREFIX or MONK_PROJECT_SLUG is not set. Run capsule setup again."
+            exit 0
+          fi
+          ENV_ENDPOINT="$MONK_SUBSCRIPTION_API_BASE/$MONK_API_PREFIX/environments?projectSlug=$MONK_PROJECT_SLUG"
+          HTTP_CODE=$(curl -s -o /tmp/capsule_sweep_envs.json -w "%{http_code}" \
+            "$ENV_ENDPOINT" \
+            -H "Authorization: Bearer $MONK_CAPSULE_TOKEN")
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            echo "::warning::Could not list environments to look for deleted branches (HTTP $HTTP_CODE)"
+            exit 0
+          fi
+          # Environment names are the branch name made safe the way resolve-context does.
+          env_name_for() {
+            local name
+            name="$(printf '%s' "$1" | tr -d '\n\r' | tr '[:upper:]' '[:lower:]' \
+              | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//; s/-+/-/g')"
+            [ -z "$name" ] && name="default"
+            name="${name:0:63}"
+            name="${name%-}"
+            [ -z "$name" ] && name="default"
+            printf '%s' "$name"
+          }
+          # Every live branch, or nothing: a partial list would make live capsules look orphaned.
+          : > /tmp/capsule_live_envs
+          page=1
+          while :; do
+            code=$(curl -s -o /tmp/capsule_branches.json -w "%{http_code}" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/branches?per_page=100&page=$page" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json")
+            if [ "$code" != "200" ]; then
+              echo "::warning::Could not list the repository's branches (HTTP $code); leaving every capsule alone."
+              exit 0
+            fi
+            while IFS= read -r live; do
+              [ -n "$live" ] && env_name_for "$live" >> /tmp/capsule_live_envs && echo >> /tmp/capsule_live_envs
+            done < <(jq -r '.[].name' /tmp/capsule_branches.json)
+            [ "$(jq 'length' /tmp/capsule_branches.json)" -lt 100 ] && break
+            page=$((page + 1))
+            if [ "$page" -gt 30 ]; then
+              echo "::warning::The repository has more than 3000 branches; not checking for deleted ones."
+              exit 0
+            fi
+          done
+          jq -r '.[] | select(.settings.capsule.repository? == env.GITHUB_REPOSITORY) | select(.settings.capsule.branch? != null and .settings.capsule.branch != "") | select((.clusterId // "") != "" or (.settings.capsule.status // "") != "destroyed") | [.name, .settings.capsule.branch] | @tsv' /tmp/capsule_sweep_envs.json \
+            | while IFS=$'\t' read -r env_name branch; do
+                [ -z "$env_name" ] && continue
+                if grep -qxF -- "$env_name" /tmp/capsule_live_envs; then
+                  continue
+                fi
+                echo "No branch maps to capsule $env_name any more ($branch). Dispatching destroy."
+                if [ "$ACT" = "true" ]; then
+                  echo "[ACT] Would dispatch workflow: ref=$DEFAULT_BRANCH action=destroy branch=$branch source=sweep"
+                  continue
+                fi
+                dispatch_payload=$(jq -n \
+                  --arg ref "$DEFAULT_BRANCH" \
+                  --arg branch "$branch" \
+                  '{ref:$ref,inputs:{action:"destroy",branch:$branch,source:"sweep"}}')
+                dispatch_code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/dynenv.yml/dispatches" \
+                  -H "Authorization: Bearer $GITHUB_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  -H "Content-Type: application/json" \
+                  -d "$dispatch_payload")
+                if [ "$dispatch_code" != "204" ]; then
+                  echo "::warning::GitHub refused to start the destroy for $branch (HTTP $dispatch_code); it will be tried again next hour."
+                fi
+              done
+
   resolve-context:
     runs-on: ubuntu-latest
     environment: "monk-capsules"
@@ -138,6 +226,8 @@ jobs:
           CTX_EVENT_NAME: ${{ github.event_name }}
           CTX_REF_NAME: ${{ github.ref_name }}
           CTX_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          CTX_DELETED_REF: ${{ github.event.ref }}
+          CTX_DELETED_REF_TYPE: ${{ github.event.ref_type }}
           CTX_DISPATCH_ACTION: ${{ github.event.inputs.action }}
           CTX_DISPATCH_SOURCE: ${{ github.event.inputs.source }}
           CTX_DISPATCH_BRANCH: ${{ github.event.inputs.branch }}
@@ -160,6 +250,14 @@ jobs:
             pull_request)
               BRANCH_NAME="$CTX_PR_HEAD_REF"
               ACTION="destroy"
+              ;;
+            delete)
+              # Deleting a branch tears its capsule down, like closing its lifecycle PR. A deleted
+              # tag has no capsule.
+              if [ "$CTX_DELETED_REF_TYPE" = "branch" ]; then
+                BRANCH_NAME="$CTX_DELETED_REF"
+                ACTION="destroy"
+              fi
               ;;
             workflow_dispatch)
               ACTION="$CTX_DISPATCH_ACTION"
@@ -247,7 +345,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: ./.github/actions/provision
+      - uses: monk-io/monk-actions/provision@v1
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -321,14 +419,7 @@ jobs:
           else
             echo "PR already exists for $BRANCH -> $BASE"
           fi
-      - name: Upload monkd log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: monkd-provision-${{ needs.resolve-context.outputs.environment_name }}
-          path: monkd-provision.log
-          if-no-files-found: ignore
-          retention-days: 3
+
   fetch-metadata:
     needs: [resolve-context, provision]
     if: ${{ always() && needs.resolve-context.outputs.should_run == 'true' && needs.resolve-context.outputs.action != 'destroy' && needs.resolve-context.outputs.action != 'deprovision' && (needs.provision.result == 'success' || needs.provision.result == 'skipped') }}
@@ -494,7 +585,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref || github.ref }}
-      - uses: ./.github/actions/cleanup
+      - uses: monk-io/monk-actions/cleanup@v1
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -502,14 +593,6 @@ jobs:
           capsule-mode: cloud
           delete-records: ${{ needs.resolve-context.outputs.action == 'destroy' && 'true' || 'false' }}
           cluster-name: ${{ needs.resolve-context.outputs.cluster_name }}
-      - name: Upload monkd log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: monkd-cleanup-${{ needs.resolve-context.outputs.environment_name }}
-          path: monkd-cleanup.log
-          if-no-files-found: ignore
-          retention-days: 3
       - name: Deactivate GitHub Deployment
         if: ${{ always() && env.ACT != 'true' }}
         continue-on-error: true
