@@ -53,7 +53,7 @@ env:
 
 jobs:
   schedule-reconcile:
-    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.source == 'sweep-test') }}
+    if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     environment: "monk-capsules"
     steps:
