@@ -350,17 +350,10 @@ jobs:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           branch-name: ${{ needs.resolve-context.outputs.branch_name }}
-          capsule-mode: cloud
-          cluster-name: ${{ needs.resolve-context.outputs.cluster_name }}
-          branch-tag: ${{ needs.resolve-context.outputs.branch_tag }}
-          cloud-provider: ${{ vars.CLOUD_PROVIDER }}
-          cloud-region: ${{ vars.CLOUD_REGION }}
-          cloud-zone: ${{ vars.CLOUD_ZONE }}
-          cloud-instance-type: ${{ vars.CLOUD_INSTANCE_TYPE }}
-          cloud-instance-count: ${{ vars.CLOUD_INSTANCE_COUNT }}
-          cloud-disk-size: ${{ vars.CLOUD_DISK_SIZE }}
-          cloud-credentials: |
-            DO_API_TOKEN=${{ secrets.DO_API_TOKEN }}
+          capsule-mode: cluster
+          target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
+          peer-pool-tag: "capsule-pool"
         env:
           GITHUB_ENVIRONMENT: capsule-${{ needs.resolve-context.outputs.environment_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -442,6 +435,7 @@ jobs:
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
 
   build-images:
     needs: [resolve-context, fetch-metadata]
@@ -476,7 +470,7 @@ jobs:
           workload: "capsule-sample/stack"
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           branch-tag: ${{ needs.resolve-context.outputs.branch_tag }}
-          capsule-mode: cloud
+          capsule-mode: cluster
           peer-pool-tag: "capsule-pool"
       - name: Update capsule metadata (success)
         if: ${{ success() }}
@@ -590,9 +584,10 @@ jobs:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           workload: "capsule-sample/stack"
-          capsule-mode: cloud
+          capsule-mode: cluster
           delete-records: ${{ needs.resolve-context.outputs.action == 'destroy' && 'true' || 'false' }}
-          cluster-name: ${{ needs.resolve-context.outputs.cluster_name }}
+          target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
       - name: Deactivate GitHub Deployment
         if: ${{ always() && env.ACT != 'true' }}
         continue-on-error: true
