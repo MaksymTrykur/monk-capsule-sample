@@ -463,7 +463,7 @@ jobs:
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
       - id: deploy
-        uses: monk-io/monk-actions/deploy@v1
+        uses: ./.github/actions/deploy-debug
         with:
           monkcode-b64: ${{ needs.fetch-metadata.outputs.monkcode }}
           monk-jit-cli-token-b64: ${{ needs.fetch-metadata.outputs.monk_jit_cli_token }}
