@@ -12,7 +12,7 @@ web:
       protocol: tcp
       ingress-routes:
         web:
-          path-prefix: /
+          host: <- `${environment}.fsapvjhxov5fz6ootb.runs.onmonk.io`
 
 stack:
   defines: group
