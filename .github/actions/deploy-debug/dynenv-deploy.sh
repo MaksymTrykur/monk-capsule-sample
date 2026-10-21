@@ -46,6 +46,12 @@ if [ ! -f "MANIFEST" ]; then
     exit 1
 fi
 
+# Whether any template in the checkout mentions `capsule-host` (BusyBox grep has no --include).
+uses_capsule_host() {
+    find . -path ./.git -prune -o -type f \( -name '*.yaml' -o -name '*.yml' \) \
+        -exec grep -l 'capsule-host' {} + 2>/dev/null | grep -q .
+}
+
 # <environment>.<domain of the first node in the pool>, or nothing when there is no such node or the
 # environment isn't usable as a single lowercase DNS label.
 capsule_host() {
@@ -71,7 +77,7 @@ if [ -n "$MONK_REPO" ]; then
     # own host under it, <environment>.<node domain>, to route on (`host: <- $capsule-host`).
     # Only passed when the project mentions it: setting a variable it doesn't declare may fail.
     HOST_ARGS=""
-    if grep -rqs --include='*.yaml' --include='*.yml' 'capsule-host' .; then
+    if uses_capsule_host; then
         CAPSULE_HOST=$(capsule_host)
         if [ -n "$CAPSULE_HOST" ]; then
             printf "${GREEN}Branch host: $CAPSULE_HOST${NC}\n"
