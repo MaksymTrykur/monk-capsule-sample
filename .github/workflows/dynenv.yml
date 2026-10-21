@@ -345,7 +345,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/provision@v1
+      - uses: ./.github/actions/provision-debug
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
