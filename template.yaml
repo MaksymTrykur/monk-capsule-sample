@@ -13,6 +13,7 @@ web:
       ingress-routes:
         web:
           host: <- $capsule-host
+          path-prefix: /
 
 stack:
   defines: group
