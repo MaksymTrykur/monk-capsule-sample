@@ -12,7 +12,7 @@ web:
       protocol: tcp
       ingress-routes:
         web:
-          host: <- `${environment}.fsapvjhxov5fz6ootb.runs.onmonk.io`
+          host: <- $capsule-host
 
 stack:
   defines: group
@@ -20,5 +20,8 @@ stack:
     environment:
       type: string
       value: main
+    capsule-host:
+      type: string
+      value: ""
   runnable-list:
     - capsule-sample/web
