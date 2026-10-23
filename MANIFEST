@@ -1,5 +1,5 @@
 REPO monk-capsule-sample
 LOAD template.yaml
 ENTRY capsule-sample/stack
-IMAGE capsule-sample:latest capsule-sample/web . Dockerfile
+IMAGE capsule-sample:iso-b capsule-sample/web . Dockerfile
 SECRET greeting
