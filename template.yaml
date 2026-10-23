@@ -12,6 +12,7 @@ web:
       protocol: tcp
       ingress-routes:
         web:
+          host: <- $ingress-host
           path-prefix: /
 
 stack:
@@ -20,5 +21,8 @@ stack:
     environment:
       type: string
       value: main
+    ingress-host:
+      type: string
+      value: ""
   runnable-list:
     - capsule-sample/web
