@@ -2,9 +2,37 @@ namespace: capsule-sample
 
 web:
   defines: runnable
+  permitted-secrets:
+    greeting: true
+  variables:
+    greeting:
+      type: string
+      value: <- secret("greeting")
+      env: GREETING
+    note:
+      type: string
+      value: main
+      env: BRANCH_NOTE
+    env-name:
+      type: string
+      value: <- $environment default("none")
+      env: ENV_NAME
+  volumes:
+    state:
+      kind: local
   containers:
     app:
       image: capsule-sample:latest
+      mounted-volumes:
+        state:
+          path: /state
+      bash: |
+        echo "$GREETING" > /usr/share/nginx/html/greeting.txt
+        echo "$BRANCH_NOTE" > /usr/share/nginx/html/note.txt
+        echo "$ENV_NAME" > /usr/share/nginx/html/env.txt
+        [ -f /state/owner ] || echo "$ENV_NAME" > /state/owner
+        cp /state/owner /usr/share/nginx/html/owner.txt
+        nginx -g 'daemon off;'
   services:
     http:
       container: app

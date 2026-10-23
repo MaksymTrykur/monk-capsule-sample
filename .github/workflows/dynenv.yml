@@ -354,6 +354,8 @@ jobs:
           target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
           target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
           peer-pool-tag: "capsule-pool"
+          workload-secrets: |
+            greeting=${{ secrets.GREETING }}
         env:
           GITHUB_ENVIRONMENT: capsule-${{ needs.resolve-context.outputs.environment_name }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -588,6 +590,8 @@ jobs:
           delete-records: ${{ needs.resolve-context.outputs.action == 'destroy' && 'true' || 'false' }}
           target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
           target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
+          workload-secrets: |
+            greeting=${{ secrets.GREETING }}
       - name: Deactivate GitHub Deployment
         if: ${{ always() && env.ACT != 'true' }}
         continue-on-error: true
