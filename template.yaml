@@ -4,7 +4,7 @@ web:
   defines: runnable
   containers:
     app:
-      image: capsule-sample:latest
+      image: capsule-sample:real-b
   services:
     http:
       container: app
