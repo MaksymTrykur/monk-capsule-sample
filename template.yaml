@@ -11,7 +11,7 @@ web:
       env: GREETING
     note:
       type: string
-      value: main
+      value: template-a
       env: BRANCH_NOTE
     env-name:
       type: string
@@ -22,7 +22,7 @@ web:
       kind: local
   containers:
     app:
-      image: capsule-sample:latest
+      image: capsule-sample:iso-a
       mounted-volumes:
         state:
           path: /state
