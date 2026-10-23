@@ -11,7 +11,7 @@ web:
       env: GREETING
     note:
       type: string
-      value: main
+      value: template-c
       env: BRANCH_NOTE
     env-name:
       type: string
@@ -22,7 +22,7 @@ web:
       kind: local
   containers:
     app:
-      image: capsule-sample:latest
+      image: capsule-sample:iso-c
       mounted-volumes:
         state:
           path: /state
@@ -40,7 +40,6 @@ web:
       protocol: tcp
       ingress-routes:
         web:
-          host: <- $ingress-host
           path-prefix: /
 
 stack:
@@ -49,8 +48,5 @@ stack:
     environment:
       type: string
       value: main
-    ingress-host:
-      type: string
-      value: ""
   runnable-list:
     - capsule-sample/web
