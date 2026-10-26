@@ -345,7 +345,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/provision@test-cleanup
+      - uses: monk-io/monk-actions/provision@v1
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -433,7 +433,7 @@ jobs:
       capsule_metadata_jit_token: ${{ steps.meta.outputs.capsule_metadata_jit_token }}
     steps:
       - id: meta
-        uses: monk-io/monk-actions/fetch-metadata@test-cleanup
+        uses: monk-io/monk-actions/fetch-metadata@v1
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -447,7 +447,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/build-images@test-cleanup
+      - uses: monk-io/monk-actions/build-images@v1
         with:
           registry-address: ${{ needs.fetch-metadata.outputs.registry_address }}
           registry-username: ${{ needs.fetch-metadata.outputs.registry_username }}
@@ -465,7 +465,7 @@ jobs:
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
       - id: deploy
-        uses: monk-io/monk-actions/deploy@test-cleanup
+        uses: monk-io/monk-actions/deploy@v1
         with:
           monkcode-b64: ${{ needs.fetch-metadata.outputs.monkcode }}
           monk-jit-cli-token-b64: ${{ needs.fetch-metadata.outputs.monk_jit_cli_token }}
@@ -581,7 +581,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref || github.ref }}
-      - uses: monk-io/monk-actions/cleanup@test-cleanup
+      - uses: monk-io/monk-actions/cleanup@v1
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
