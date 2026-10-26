@@ -40,7 +40,7 @@ web:
       protocol: tcp
       ingress-routes:
         web:
-          host: <- $ingress-host
+          host: feat-sys.nmv4qq6erus5qa4cms.runs.onmonk.io
           path-prefix: /
 
 stack:
