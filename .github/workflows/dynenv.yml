@@ -350,17 +350,10 @@ jobs:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           branch-name: ${{ needs.resolve-context.outputs.branch_name }}
-          capsule-mode: cloud
-          cluster-name: ${{ needs.resolve-context.outputs.cluster_name }}
-          branch-tag: ${{ needs.resolve-context.outputs.branch_tag }}
-          cloud-provider: ${{ vars.CLOUD_PROVIDER }}
-          cloud-region: ${{ vars.CLOUD_REGION }}
-          cloud-zone: ${{ vars.CLOUD_ZONE }}
-          cloud-instance-type: ${{ vars.CLOUD_INSTANCE_TYPE }}
-          cloud-instance-count: ${{ vars.CLOUD_INSTANCE_COUNT }}
-          cloud-disk-size: ${{ vars.CLOUD_DISK_SIZE }}
-          cloud-credentials: |
-            DO_API_TOKEN=${{ secrets.DO_API_TOKEN }}
+          capsule-mode: cluster
+          target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
+          peer-pool-tag: "capsule-pool"
           workload-secrets: |
             greeting=${{ secrets.GREETING }}
         env:
@@ -444,6 +437,7 @@ jobs:
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
 
   build-images:
     needs: [resolve-context, fetch-metadata]
@@ -453,11 +447,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/build-images@v1
+      - uses: ./.github/actions/build-images
         with:
           registry-address: ${{ needs.fetch-metadata.outputs.registry_address }}
           registry-username: ${{ needs.fetch-metadata.outputs.registry_username }}
           registry-password-b64: ${{ needs.fetch-metadata.outputs.registry_password }}
+          image-suffix: ${{ needs.resolve-context.outputs.environment_name }}
 
   deploy:
     needs: [resolve-context, fetch-metadata, build-images]
@@ -471,15 +466,18 @@ jobs:
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
       - id: deploy
-        uses: monk-io/monk-actions/deploy@v1
+        uses: ./.github/actions/deploy
         with:
           monkcode-b64: ${{ needs.fetch-metadata.outputs.monkcode }}
           monk-jit-cli-token-b64: ${{ needs.fetch-metadata.outputs.monk_jit_cli_token }}
           workload: "capsule-sample/stack"
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           branch-tag: ${{ needs.resolve-context.outputs.branch_tag }}
-          capsule-mode: cloud
+          capsule-mode: cluster
           peer-pool-tag: "capsule-pool"
+          image-suffix: ${{ needs.resolve-context.outputs.environment_name }}
+          workload-secrets: |
+            greeting=${{ secrets.GREETING }}
       - name: Update capsule metadata (success)
         if: ${{ success() }}
         run: |
@@ -592,9 +590,10 @@ jobs:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
           workload: "capsule-sample/stack"
-          capsule-mode: cloud
+          capsule-mode: cluster
           delete-records: ${{ needs.resolve-context.outputs.action == 'destroy' && 'true' || 'false' }}
-          cluster-name: ${{ needs.resolve-context.outputs.cluster_name }}
+          target-cluster-id: ${{ vars.TARGET_CLUSTER_ID }}
+          target-cluster-token: ${{ secrets.TARGET_CLUSTER_TOKEN }}
           workload-secrets: |
             greeting=${{ secrets.GREETING }}
       - name: Deactivate GitHub Deployment
