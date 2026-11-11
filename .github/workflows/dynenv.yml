@@ -452,7 +452,6 @@ jobs:
           registry-address: ${{ needs.fetch-metadata.outputs.registry_address }}
           registry-username: ${{ needs.fetch-metadata.outputs.registry_username }}
           registry-password-b64: ${{ needs.fetch-metadata.outputs.registry_password }}
-          image-suffix: ${{ needs.resolve-context.outputs.environment_name }}
 
   deploy:
     needs: [resolve-context, fetch-metadata, build-images]
@@ -475,7 +474,6 @@ jobs:
           branch-tag: ${{ needs.resolve-context.outputs.branch_tag }}
           capsule-mode: cluster
           peer-pool-tag: "capsule-pool"
-          image-suffix: ${{ needs.resolve-context.outputs.environment_name }}
           workload-secrets: |
             greeting=${{ secrets.GREETING }}
       - name: Update capsule metadata (success)
