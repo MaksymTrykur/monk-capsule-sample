@@ -8,8 +8,6 @@ NC='\033[0m'
 
 printf "${GREEN}Monk Deploy${NC}\n"
 
-. "$(dirname "$0")/image-tag.sh"
-
 # Validate required env vars
 # MONKCODE and MONK_SERVICE_TOKEN are set by the entrypoint before invoking this script
 for var in MONKCODE MONK_SERVICE_TOKEN MONK_WORKLOAD; do
@@ -48,6 +46,19 @@ if [ ! -f "MANIFEST" ]; then
     exit 1
 fi
 
+# The template files a MANIFEST loads: its LOAD files, and those of the sub-MANIFESTs named by
+# DIR/DIRS, each relative to the MANIFEST that names it. A missing sub-MANIFEST adds nothing.
+# $2 is the nesting depth, which stops a DIRS loop.
+manifest_templates() {
+    [ -f "$1/MANIFEST" ] || return 0
+    sed 's/#.*//' "$1/MANIFEST" | awk 'toupper($1) == "LOAD" { for (i = 2; i <= NF; i++) print $i }' |
+        while read -r file; do printf '%s/%s\n' "$1" "$file"; done
+    [ "${2:-0}" -lt 8 ] || return 0
+    sed 's/#.*//' "$1/MANIFEST" |
+        awk 'toupper($1) == "DIR" || toupper($1) == "DIRS" { for (i = 2; i <= NF; i++) print $i }' |
+        while read -r sub; do manifest_templates "$1/$sub" $((${2:-0} + 1)); done
+}
+
 # Whether a template the MANIFEST loads declares an `ingress-host` variable. Other YAML in the
 # checkout, a mention in a comment, or a workflow doesn't count: passing a variable the template
 # doesn't declare may fail the update.
@@ -78,36 +89,8 @@ ingress_host() {
     printf '%s.%s' "$label" "$domain"
 }
 
-# Cluster capsules share one registry: build-images pushed each image under <tag>-<IMAGE_SUFFIX>,
-# so the templates are pointed at it before they are loaded. The checkout is the job's own.
-if [ -n "$IMAGE_SUFFIX" ] && [ "$CAPSULE_MODE" != "static" ]; then
-    rewrite_templates_for_branch "$IMAGE_SUFFIX"
-fi
-
-# WORKLOAD_SECRETS is a multiline KEY=value bag (one per line) of this branch's own values: the
-# job runs in the branch's GitHub environment, so a secret set there reaches it and the shared
-# default (seeded by provision, from the shared environment) is overwritten. An empty value is
-# the shared default's, so it is skipped. Values are never printed.
-seed_workload_secrets() {
-    [ -n "$WORKLOAD_SECRETS" ] || return 0
-    [ "$CAPSULE_MODE" != "static" ] || return 0
-    printf '%s\n' "$WORKLOAD_SECRETS" | while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        KEY="${line%%=*}"
-        VALUE="${line#*=}"
-        [ -n "$KEY" ] && [ -n "$VALUE" ] || continue
-        if [ -n "$MONK_REPO" ]; then
-            monk secrets add --scope "$MONK_REPO" "$KEY=$VALUE" > /dev/null || exit 1
-        else
-            monk secrets add -g "$KEY=$VALUE" > /dev/null || exit 1
-        fi
-        printf "${GREEN}Secret $KEY set from this branch's environment${NC}\n"
-    done
-}
-
 # When MONK_REPO is set (shared cluster), load under a dedicated repo namespace.
 if [ -n "$MONK_REPO" ]; then
-    seed_workload_secrets
     printf "${GREEN}Loading MANIFEST into repo '$MONK_REPO'...${NC}\n"
     monk load --repo "$MONK_REPO" MANIFEST
 
@@ -136,7 +119,6 @@ elif [ "$CAPSULE_MODE" = "static" ]; then
     printf "${GREEN}Deploying workload $MONK_WORKLOAD to tag $MONK_TAG...${NC}\n"
     monk update -t "$MONK_TAG" "$MONK_WORKLOAD"
 else
-    seed_workload_secrets
     printf "${GREEN}Loading MANIFEST...${NC}\n"
     monk load MANIFEST
 

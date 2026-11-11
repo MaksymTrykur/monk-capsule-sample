@@ -1,0 +1,29 @@
+name: Cleanup guard test
+
+# Test only. Runs the cloud-mode cleanup (the fixed copy in .github/actions/cleanup) against an
+# environment that a cluster-mode run linked to a shared cluster: what happens when the default
+# branch's workflow is cloud mode and a branch that was deployed in cluster mode is deleted.
+'on':
+  push:
+    branches: [ val-cleanup ]
+
+env:
+  MONK_SUBSCRIPTION_API_BASE: ${{ vars.MONK_SUBSCRIPTION_API_BASE }}
+  MONK_AUTH_SERVICE_URL: ${{ vars.MONK_AUTH_SERVICE_URL }}
+  MONK_ORG_SLUG: ${{ vars.MONK_ORG_SLUG }}
+  MONK_API_PREFIX: ${{ vars.MONK_API_PREFIX }}
+  MONK_PROJECT_SLUG: ${{ vars.MONK_PROJECT_SLUG }}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: "monk-capsules"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/cleanup
+        with:
+          monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
+          environment-name: val-a
+          cluster-name: monk-capsule-sample-val-a
+          capsule-mode: cloud
+          delete-records: 'true'
