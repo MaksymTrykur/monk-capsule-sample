@@ -1,4 +1,4 @@
-name: "Monk Capsule — Provision (keeps monkd.log)"
+name: "Monk Capsule — Provision"
 description: "Provision (or reuse) a Monk cluster for a capsule environment. Supports cloud mode (creates a fresh cluster per branch) and cluster mode (deploys onto a shared cluster)."
 inputs:
   monk-token:
@@ -58,14 +58,8 @@ inputs:
     required: false
 runs:
   using: docker
-  image: docker://monkimages.azurecr.io/monk-actions:v1
-  entrypoint: /bin/sh
-  args:
-    - -c
-    - |
-      /opt/monk-actions/entrypoints/provision.sh; rc=$?
-      cp /tmp/monkd.log /github/workspace/monkd-provision.log 2>/dev/null || true
-      exit $rc
+  image: Dockerfile
+  entrypoint: /opt/monk-actions/entrypoints/provision.sh
   env:
     MONK_CAPSULE_TOKEN: ${{ inputs.monk-token }}
     CLUSTER_NAME: ${{ inputs.cluster-name }}
