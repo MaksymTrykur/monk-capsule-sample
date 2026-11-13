@@ -1,4 +1,4 @@
-name: "Monk Capsule — Cleanup (keeps monkd.log)"
+name: "Monk Capsule — Cleanup"
 description: "Tear down a capsule: stop workloads, nuke the cluster (cloud mode) or unload templates (cluster mode), and optionally delete backend records."
 inputs:
   monk-token:
@@ -32,14 +32,8 @@ inputs:
     required: false
 runs:
   using: docker
-  image: docker://monkimages.azurecr.io/monk-actions:v1
-  entrypoint: /bin/sh
-  args:
-    - -c
-    - |
-      /opt/monk-actions/entrypoints/cleanup.sh; rc=$?
-      cp /tmp/monkd.log /github/workspace/monkd-cleanup.log 2>/dev/null || true
-      exit $rc
+  image: Dockerfile
+  entrypoint: /opt/monk-actions/entrypoints/cleanup.sh
   env:
     MONK_CAPSULE_TOKEN: ${{ inputs.monk-token }}
     CLUSTER_NAME: ${{ inputs.cluster-name }}

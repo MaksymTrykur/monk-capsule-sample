@@ -345,7 +345,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/provision@v1
+      - uses: ./.github/actions/provision
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -439,8 +439,9 @@ jobs:
       project_slug: ${{ steps.meta.outputs.project_slug }}
       capsule_metadata_jit_token: ${{ steps.meta.outputs.capsule_metadata_jit_token }}
     steps:
+      - uses: actions/checkout@v4
       - id: meta
-        uses: monk-io/monk-actions/fetch-metadata@v1
+        uses: ./.github/actions/fetch-metadata
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}
@@ -453,7 +454,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
-      - uses: monk-io/monk-actions/build-images@v1
+      - uses: ./.github/actions/build-images
         with:
           registry-address: ${{ needs.fetch-metadata.outputs.registry_address }}
           registry-username: ${{ needs.fetch-metadata.outputs.registry_username }}
@@ -471,7 +472,7 @@ jobs:
         with:
           ref: ${{ needs.resolve-context.outputs.branch_name }}
       - id: deploy
-        uses: monk-io/monk-actions/deploy@v1
+        uses: ./.github/actions/deploy
         with:
           monkcode-b64: ${{ needs.fetch-metadata.outputs.monkcode }}
           monk-jit-cli-token-b64: ${{ needs.fetch-metadata.outputs.monk_jit_cli_token }}
@@ -587,7 +588,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.base.ref || github.ref }}
-      - uses: monk-io/monk-actions/cleanup@v1
+      - uses: ./.github/actions/cleanup
         with:
           monk-token: ${{ secrets.MONK_CAPSULE_TOKEN }}
           environment-name: ${{ needs.resolve-context.outputs.environment_name }}

@@ -1,0 +1,62 @@
+name: "Monk Capsule — Build Images"
+description: "Build and push all images declared in MANIFEST to a Monk registry. Runs as a composite action on the host runner (not in a container) so podman/docker can layer-build natively. Capsule flows pass the double-base64'd password from fetch-metadata; static CI/CD flows pass a plain repo secret."
+inputs:
+  registry-address:
+    description: "Registry hostname:port."
+    required: true
+  registry-username:
+    description: "Registry username."
+    required: true
+  registry-password-b64:
+    description: "Registry password, double-base64'd (from fetch-metadata). Takes precedence over registry-password."
+    required: false
+  registry-password:
+    description: "Registry password, plain (typically the REGISTRY_PASSWORD repo secret). Ignored when registry-password-b64 is set."
+    required: false
+  registry-tls-verify:
+    description: "Whether to verify the registry's TLS certificate when pushing with podman. Default true."
+    required: false
+    default: "true"
+  image-suffix:
+    description: "Cluster capsules, which share one registry: push each image as <tag>-<image-suffix> (the capsule environment), so branches don't overwrite each other. Pass the same value to deploy. Empty: push the tag as written."
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install podman
+      shell: bash
+      run: |
+        if ! command -v podman >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y podman
+        fi
+    - name: Build and push images
+      shell: bash
+      env:
+        REGISTRY_ADDRESS: ${{ inputs.registry-address }}
+        REGISTRY_USERNAME: ${{ inputs.registry-username }}
+        REGISTRY_PASSWORD_B64: ${{ inputs.registry-password-b64 }}
+        REGISTRY_PASSWORD_PLAIN: ${{ inputs.registry-password }}
+        REGISTRY_TLS_VERIFY: ${{ inputs.registry-tls-verify }}
+        IMAGE_SUFFIX: ${{ inputs.image-suffix }}
+        PARSE_MANIFEST: ${{ github.action_path }}/../scripts/parse-manifest.sh
+        BUILD_IMAGES_SCRIPT: ${{ github.action_path }}/../scripts/build-images.sh
+      run: |
+        set -e
+        if [ -n "$REGISTRY_PASSWORD_B64" ]; then
+          REGISTRY_PASSWORD=$(echo "$REGISTRY_PASSWORD_B64" | base64 -di | base64 -di)
+          echo "::add-mask::$REGISTRY_PASSWORD"
+        else
+          REGISTRY_PASSWORD="$REGISTRY_PASSWORD_PLAIN"
+        fi
+        export REGISTRY_PASSWORD
+        if [ -z "$REGISTRY_ADDRESS" ] || [ -z "$REGISTRY_USERNAME" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+          echo "::error::Registry credentials are required"
+          exit 1
+        fi
+        chmod +x "$PARSE_MANIFEST" "$BUILD_IMAGES_SCRIPT"
+        "$BUILD_IMAGES_SCRIPT"
+branding:
+  icon: box
+  color: purple
