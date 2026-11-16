@@ -1,0 +1,34 @@
+name: pro949 secret parsing
+'on':
+  push:
+    branches: [ "pro-949-secret-parse-test" ]
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: monk-io/monk-actions
+          ref: maksym/pro-949-multiline-credentials
+      - name: parse in the actions image's shell (alpine, busybox)
+        env:
+          # exactly what the generated workflow / README emit
+          CLOUD_CREDENTIALS: |
+            GCP_SERVICE_ACCOUNT_KEY=${{ secrets.PRO949_GCPKEY }}
+            GCP_PROJECT_ID=proj
+          WORKLOAD_SECRETS: |
+            {"pem": ${{ toJSON(secrets.PRO949_PEM) }} }
+            {"missing": ${{ toJSON(secrets.PRO949_NOT_SET) }} }
+            legacy=1
+        run: |
+          cat > check.sh <<'SH'
+          set -e
+          apk add --no-cache jq >/dev/null
+          . ./entrypoints/_common.sh
+          . ./scripts/workload-secrets.sh
+          load_kv_bag "$CLOUD_CREDENTIALS"
+          echo "gcp_key sha=$(printf '%s' "$GCP_SERVICE_ACCOUNT_KEY" | sha256sum | cut -c1-16) valid_json=$(printf '%s' "$GCP_SERVICE_ACCOUNT_KEY" | jq -e .type >/dev/null && echo yes || echo no) project=$GCP_PROJECT_ID"
+          show() { echo "workload $1 len=${#2} sha=$(printf '%s' "$2" | sha256sum | cut -c1-16)"; }
+          each_workload_secret show
+          SH
+          docker run --rm -v "$PWD":/w -w /w -e CLOUD_CREDENTIALS -e WORKLOAD_SECRETS alpine:3 sh check.sh
